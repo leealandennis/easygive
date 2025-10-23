@@ -1,0 +1,215 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(100)
+  domain    String   @unique @db.VarChar(100)
+  ein       String   @unique @db.VarChar(20)
+  address   Json     // Using JSON for nested address object
+  contactInfo Json   // Using JSON for nested contact info
+  subscription Json  // Using JSON for subscription details
+  matchingProgram Json // Using JSON for matching program
+  settings  Json     // Using JSON for settings
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users     User[]
+  donations Donation[]
+  taxRecords TaxRecord[]
+
+  @@map("companies")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique @db.VarChar(255)
+  password    String   @db.VarChar(255)
+  firstName   String   @db.VarChar(50)
+  lastName    String   @db.VarChar(50)
+  role        UserRole @default(EMPLOYEE)
+  employeeId  String?  @db.VarChar(50)
+  department  String?  @db.VarChar(100)
+  position    String?  @db.VarChar(100)
+  salary      Decimal? @db.Decimal(10, 2)
+  address     Json?    // Using JSON for nested address
+  phone       String?  @db.VarChar(20)
+  preferences Json     @default("{}") // Using JSON for preferences
+  gamification Json    @default("{}") // Using JSON for gamification
+  isActive    Boolean  @default(true)
+  isVerified  Boolean  @default(false)
+  lastLogin   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  donations   Donation[]
+  taxRecords  TaxRecord[]
+
+  // Indexes
+  @@unique([employeeId, companyId])
+  @@index([email])
+  @@index([companyId])
+  @@index([role])
+  @@map("users")
+}
+
+model Charity {
+  id            String   @id @default(cuid())
+  name          String   @db.VarChar(200)
+  ein           String   @unique @db.VarChar(20)
+  description   String   @db.Text
+  category      CharityCategory
+  subcategory   String?  @db.VarChar(100)
+  website       String?  @db.VarChar(255)
+  address       Json     // Using JSON for nested address
+  contactInfo   Json?    // Using JSON for contact info
+  verification  Json     @default("{}") // Using JSON for verification
+  images        Json?    // Using JSON for images
+  impact        Json?    // Using JSON for impact data
+  donationInfo  Json     @default("{}") // Using JSON for donation info
+  isActive      Boolean  @default(true)
+  isFeatured    Boolean  @default(false)
+  totalDonations Decimal @default(0) @db.Decimal(12, 2)
+  totalDonors   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  donations     Donation[]
+
+  // Indexes
+  @@index([category])
+  @@index([isActive, isFeatured])
+  @@index([name])
+  @@map("charities")
+}
+
+model Donation {
+  id              String        @id @default(cuid())
+  amount          Decimal       @db.Decimal(10, 2)
+  matchingAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal       @db.Decimal(10, 2)
+  type            DonationType
+  frequency       DonationFrequency?
+  status          DonationStatus @default(PENDING)
+  paymentMethod   PaymentMethod
+  payrollInfo     Json?         // Using JSON for payroll info
+  processingInfo  Json          @default("{}") // Using JSON for processing info
+  taxInfo         Json          @default("{}") // Using JSON for tax info
+  notes           String?       @db.VarChar(500)
+  isAnonymous     Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  charityId       String
+  charity         Charity       @relation(fields: [charityId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([userId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([charityId, createdAt])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("donations")
+}
+
+model TaxRecord {
+  id          String        @id @default(cuid())
+  taxYear     Int
+  donations   Json          // Using JSON for donation details
+  summary     Json          @default("{}") // Using JSON for summary
+  documents   Json          @default("{}") // Using JSON for documents
+  status      TaxRecordStatus @default(DRAFT)
+  generatedAt DateTime?
+  sentAt      DateTime?
+  downloadedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@unique([userId, taxYear])
+  @@index([companyId, taxYear])
+  @@index([taxYear])
+  @@index([status])
+  @@map("tax_records")
+}
+
+// Enums
+enum UserRole {
+  EMPLOYEE
+  HR_ADMIN
+  SUPER_ADMIN
+}
+
+enum CharityCategory {
+  ENVIRONMENT
+  EDUCATION
+  HEALTH
+  ANIMALS
+  HUMAN_SERVICES
+  INTERNATIONAL
+  ARTS_CULTURE
+  RELIGION
+  OTHER
+}
+
+enum DonationType {
+  ONE_TIME
+  RECURRING
+}
+
+enum DonationFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum DonationStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  PAYROLL_DEDUCTION
+  DIRECT_PAYMENT
+  COMPANY_MATCH
+}
+
+enum TaxRecordStatus {
+  DRAFT
+  GENERATED
+  SENT
+  DOWNLOADED
+}

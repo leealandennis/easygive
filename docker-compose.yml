@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: easygive-postgres
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      - POSTGRES_USER=username
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=easygive
+    volumes:
+      - easygive_pgdata:/var/lib/postgresql/data
+    healthcheck:                                                                                                                                                                                                                                                                  
+      test: ["CMD-SHELL", "pg_isready -U username -d easygive -h 127.0.0.1 -p 5432"]
+      interval: 2s
+      timeout: 5s
+      retries: 30                                                                                                                                                                                                                       
+
+  backend:
+    image: node:18-slim
+    container_name: easygive-backend
+    working_dir: /app
+    network_mode: "host"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://username:password@localhost:5432/easygive?schema=public
+      - FRONTEND_URL=http://localhost:3000
+      - PORT=5000
+      - JWT_SECRET=dev-secret-change-in-production
+      - JWT_EXPIRE=7d
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "apt-get update && apt-get install -y openssl ca-certificates && npm ci && npx --yes prisma generate && npx --yes prisma db push && npm run seed && npm run dev"
+
+volumes:
+  easygive_pgdata:
+    name: easygive_pgdata
+
+
